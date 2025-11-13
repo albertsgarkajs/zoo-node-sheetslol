@@ -1,4 +1,4 @@
-// server.js
+// app/server.js
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -11,30 +11,43 @@ import adminRouter from './routes/admin.js';
 import mobileRouter from './routes/mobile.js';
 import './utils/cron.js'; // ← automātiski startē
 
-const PORT = process.env.PORT || 8080;
+// === PORT (Render gaida 8080, bet mēs klausāmies jebkuru) ===
+const PORT = process.env.PORT || 10000;
+
+// === APP & SERVER ===
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server, {
+    cors: { origin: "*" }
+});
 
 // === MIDDLEWARE ===
 app.use(sessionMiddleware);
-app.use(express.static('.'));
-app.use('/public', express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+
+// Statiskie faili no /app/app (Docker root)
+app.use(express.static('/app/app'));
+
+// Papildu: /public → tieši no /app/app/public
+app.use('/public', express.static('/app/app/public'));
+
 app.use(detectMobile);
 app.use(noCache);
 
+// Socket.IO sesijas
 io.use((socket, next) => sessionMiddleware(socket.request, {}, next));
 attachIO(io);
 
-// === ROUTES ===
+// === ROUTES (katrā sava ceļš!) ===
 app.use('/api', apiRouter);
-app.use('/api', adminRouter);
-app.use('/api', mobileRouter);
+app.use('/admin', adminRouter);     // ← nevis /api
+app.use('/mobile', mobileRouter);   // ← nevis /api
 
-// === FALLBACK ===
-app.get('*', (req, res) => res.sendFile('login.html', { root: '.' }));
+// === FALLBACK: visi nezināmie ceļi → login.html ===
+app.get('*', (req, res) => {
+    res.sendFile('login.html', { root: '/app/app' });
+});
 
 // === START ===
 (async () => {
